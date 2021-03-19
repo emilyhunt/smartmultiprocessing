@@ -6,8 +6,10 @@ import curses
 import time
 import datetime
 import multiprocessing
+import psutil
 
 from .utilities import timestamp, Logfile
+from typing import Optional
 
 
 class SubprocessHandler:
@@ -29,7 +31,8 @@ class SubprocessHandler:
 
         # Storage space for processes themselves
         self.current_task_assignments = np.full(self.config['max_threads'], -1)  # Array indicating target index of each task
-        self.default_process_dict = {'update': '-', 'process': None}
+        self.default_process_dict = {'update': '-', 'process': None,
+                                     'fuck_you_pycharm': Optional[multiprocessing.Process]}
         self.processes = [self.default_process_dict.copy() for i in range(self.config['max_threads'])]
 
         if self.config['benchmarking_tasks'] > 0:
@@ -40,14 +43,16 @@ class SubprocessHandler:
         self.tasks_completed = 0
 
         # Generate a more sophisticated dataframe of task info storage
-        self.task_information, self.completed_tasks_log, self.write_header = self._generate_task_info_dataframe()
+        self.task_information, self.completed_tasks_csv_file, self.write_header = self._generate_task_info_dataframe()
 
         # Display settings
         self.padding = len(str(self.config['max_threads']))
 
         # Resource tracking space
-        self.current_cpu_usage = 0.0
-        self.current_memory_usage = 0.0
+        self.process_cpu_usage = np.zeros(self.config['max_threads'])
+        self.process_memory_usage = np.zeros(self.config['max_threads'])
+        self.total_cpu_usage = 0.0
+        self.total_memory_usage = 0.0
         self.expected_memory_usage = 0.0
         self.expected_finish_time = datetime.datetime(year=6666, month=6, day=6, hour=6, minute=6, second=6)  # lol
         self.step = 0
@@ -94,27 +99,110 @@ class SubprocessHandler:
     def _update_task_info_dataframe_on_disk(self, indexes_to_write):
         """Appends a line or lines to the task info dataframe. Will write a header if the file didn't exist before."""
         lines_to_append = self.task_information.loc[np.atleast_1d(indexes_to_write)]
-        lines_to_append.to_csv(self.completed_tasks_log, index=False, mode='a', header=self.write_header)
+        lines_to_append.to_csv(self.completed_tasks_csv_file, index=False, mode='a', header=self.write_header)
         self.write_header = False
 
     def _check_memory_usage(self):
         """Monitors the memory usage of the respective subprocesses and code. In the event of a memory limit being
         reached, this function will kill the lowest priority processes."""
-        pass
+        # Cycle over all processes, using psutil to get their total cpu and memory usages
+        self.process_cpu_usage = np.zeros(self.config['max_threads'])
+        self.process_memory_usage = np.zeros(self.config['max_threads'])
 
-    def _close_subprocess(self, index_to_close):
-        """Softly closes a subprocess after it ends."""
+        running_processes = (self.current_task_assignments != -1).nonzero()[0]
+        for i in running_processes:
+            self.process_cpu_usage[i] = self.processes[i]['psutil_process'].cpu_percent()
+            self.process_memory_usage[i] = self.processes[i]['psutil_process'].memory_info().rss / 1024**3
+
+        self.total_cpu_usage = np.sum(self.process_cpu_usage)
+        self.total_memory_usage = np.sum(self.process_memory_usage)
+
+        # Update the dataframe of task info
+        running_tasks = self.current_task_assignments[running_processes]
+        new_memory_is_higher = (
+                self.process_memory_usage[running_processes] > self.task_information.loc[running_tasks, 'memory'])
+
+        self.task_information.loc[running_tasks[new_memory_is_higher], 'memory'] = (
+            self.process_memory_usage[running_processes[new_memory_is_higher]])
+
+        # Do something if the memory usage is over our tolerance
+        if self.total_memory_usage > self.config['max_memory_hard_limit']:
+            # We can deal with this by either raising an error...
+            if self.config['overmemory_raise_error']:
+                raise RuntimeError("process has encountered an overmemory event and had to close! Last measursed at "
+                                   f"{self.total_memory_usage} GB of RAM.")
+
+            # ... or by finding processes to kill based on their age. We'll kill processes until the total memory usage
+            # is small enough. We kill the youngest processes first ("the younglings, AnakinSkywalker.py") as they've
+            # had the lowest CPU time investment so far.
+            else:
+                # Some info for an informative error message if this doesn't work
+                previous_running_tasks = self.current_task_assignments[running_processes].copy()
+                previous_memory_usages = self.process_memory_usage[running_processes].copy()
+
+                # Cycle, deleting 1 process at a time until we're ok
+                n_running_processes = len(running_processes)
+                while self.total_memory_usage > self.config['max_memory']:
+                    index_of_task_to_kill = self.task_information.loc[running_tasks, 'start_time'].idxmax()
+                    index_of_process_to_kill = (self.current_task_assignments
+                        == self.task_information.loc[index_of_task_to_kill, 'args']).to_numpy().nonzero()[0][0]
+
+                    self.total_memory_usage -= self.process_memory_usage[index_of_process_to_kill]
+
+                    self._kill_subprocess(
+                        index_of_task_to_kill,
+                        f"KILLED due to overmemory: task {previous_running_tasks[index_of_process_to_kill]} with "
+                        f"{previous_memory_usages[index_of_process_to_kill]:.3f} GB memory last"
+                    )
+
+                    running_processes = (self.current_task_assignments != -1).nonzero()[0]
+                    running_tasks = self.current_task_assignments[running_processes]
+                    n_running_processes = len(running_processes)
+
+                    # If killing all processes was necessary to fix this then that means at least one task was using too
+                    # much memory!
+                    if n_running_processes == 0:
+                        error_message = ["in order to save an out of memory issue, I had to kill *all* subprocesses. "
+                                         "This means that one subprocess alone was overusing the entire memory "
+                                         "budget. The following tasks were running, including their memory use:"]
+
+                        for a_task, a_memory in zip(previous_running_tasks, previous_memory_usages):
+                            error_message.append(f"{a_task}: {a_memory} GB")
+                        error_message = "\n".join(error_message)
+
+                        raise RuntimeError(error_message)
+
+    def _kill_subprocess(self, index_to_kill, message):
+        """MURDERS a subprocess if it is MISBEHAVING. Does so immediately and resets info, other than making sure
+        that it's known in the update to render to the screen that it had to be ended.
+        """
+        self.processes[index_to_kill]['process'].kill()
+        self._close_subprocess(index_to_kill, completed=False)
+        self.processes[index_to_kill]['update'] = message
+
+    def _close_subprocess(self, index_to_close, completed=True):
+        """Softly closes a subprocess after it ends, resetting all of the slots' info attached to the class. If
+        completed=True (i.e. it is believed to have finished successfully), log data will also be written.
+        """
         # Handle internal task info stuff and resource monitoring
         previous_task = self.current_task_assignments[index_to_close]
         self.current_task_assignments[index_to_close] = -1
         self.tasks_completed += 1
         self.expected_memory_usage -= self.task_information.loc[previous_task, 'expected_memory']
+        self.process_cpu_usage[index_to_close] = 0
+        self.process_memory_usage[index_to_close] = 0
 
-        # Write to the tasks dataframe and save that it's done
-        self.task_information.loc[previous_task, 'runtime'] = time.time() - self.processes[index_to_close]['start_time']
-        self.task_information.loc[previous_task, 'completion_time'] = datetime.datetime.now()
-        self.task_information.loc[previous_task, 'remaining_to_do'] = False
-        self._update_task_info_dataframe_on_disk(previous_task)
+        # Write to the tasks dataframe and save that it's done (that is, if it's actually done...)
+        if completed:
+            self.task_information.loc[previous_task, 'runtime'] = (
+                    time.time() - self.processes[index_to_close]['start_time'])
+            self.task_information.loc[previous_task, 'completion_time'] = datetime.datetime.now()
+            self.task_information.loc[previous_task, 'remaining_to_do'] = False
+            self._update_task_info_dataframe_on_disk(previous_task)
+
+        # Otherwise, reset and say that it's bad
+        else:
+            self.task_information.loc[previous_task, 'remaining_to_do'] = True
 
         # Reset the entry in the process list
         self.processes[index_to_close] = self.default_process_dict.copy()
@@ -163,7 +251,7 @@ class SubprocessHandler:
         running_subprocesses = np.count_nonzero(self.current_task_assignments != -1)
 
         # Next, calculate how many processes we *could* run
-        available_memory = self.config['max_memory'] - np.max([self.current_memory_usage, self.expected_memory_usage])
+        available_memory = self.config['max_memory'] - np.max([self.total_memory_usage, self.expected_memory_usage])
         max_subprocesses_to_start = self.current_max_threads - running_subprocesses
 
         # Start as many subprocesses as possible, if possible!
@@ -215,13 +303,17 @@ class SubprocessHandler:
         self.processes[subprocess_to_start]['update'] = timestamp(date=False) + f"Initialising from main..."
         self.processes[subprocess_to_start]['start_time'] = time.time()
 
-        # Lastly, start it!
+        # Start it!
         self.processes[subprocess_to_start]['process'].start()
+
+        # Lastly, now that we can get its pid, we can make a psutil process for monitoring resource usage
+        self.processes[subprocess_to_start]['psutil_process'] = psutil.Process(
+            self.processes[subprocess_to_start]['process'].pid)
 
     def _fit_resource_usage(self):
         """Updates fits to memory and CPU usage based on new datapoints, allowing the maximum number of subprocesses
         to be ran at any one time."""
-        # Todo
+        # Todo - also don't forget this should update self.expected_memory_usage as some stuff will change
 
         pass
 
@@ -247,8 +339,8 @@ class SubprocessHandler:
         stdscr.addstr(i + 4, 0, "-- Current total resource use --")
         current_threads = np.count_nonzero(self.current_task_assignments != -1)
         stdscr.addstr(i + 5, 0, f"Threads: {current_threads} of {self.current_max_threads}")
-        stdscr.addstr(i + 6, 0, f"CPU: {self.current_cpu_usage:.3f}")
-        stdscr.addstr(i + 7, 0, f"RAM: {self.current_memory_usage:.3f} GB of {self.config['max_memory']:.3f} GB")
+        stdscr.addstr(i + 6, 0, f"CPU: {self.total_cpu_usage:.3f}%")
+        stdscr.addstr(i + 7, 0, f"RAM: {self.total_memory_usage:.3f} GB of {self.config['max_memory']:.3f} GB")
         stdscr.addstr(i + 8, 0, f"     {self.expected_memory_usage:.3f} GB  (expected usage)")
 
         stdscr.addstr(i + 10, 0, "-- Forecasts --")
