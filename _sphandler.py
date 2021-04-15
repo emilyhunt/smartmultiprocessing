@@ -53,6 +53,7 @@ class SubprocessHandler:
         # Some numbers on current tasks
         self.tasks_total = len(config['args'])
         self.tasks_completed = 0
+        self.last_task_count_when_we_fitted = 0
         self.last_task_count_when_we_plotted = 0
 
         # Generate a more sophisticated dataframe of task info storage
@@ -384,8 +385,9 @@ class SubprocessHandler:
         """Updates fits to memory and CPU usage based on new datapoints, allowing the maximum number of subprocesses
         to be ran at any one time."""
         # Firstly, let's only continue if we're outside of the benchmarking phase, also not allowing fits to only one
-        # point
-        if self.tasks_completed >= 6 and self.tasks_completed >= self.config['benchmarking_tasks']:
+        # point, and also we only fit at specified intervals anyway
+        if (self.tasks_completed >= 6 and self.tasks_completed >= self.config['benchmarking_tasks'] and
+                self.tasks_completed - self.last_task_count_when_we_fitted > self.config['fit_update_interval']):
             # Grab all of our logg'd data
             finished_tasks = np.invert(self.task_information['remaining_to_do'])
 
@@ -430,6 +432,7 @@ class SubprocessHandler:
                 self.task_information.loc[self.task_information['remaining_to_do'], 'expected_memory'] = expected_memory
 
                 # Finally, let's also update the stats for currently running stuff
+                self.last_task_count_when_we_fitted = self.tasks_completed
                 self.expected_memory_usage = self.task_information.loc[
                     self.task_information['in_progress'], 'expected_memory'].sum()
 
@@ -517,7 +520,7 @@ class SubprocessHandler:
             f"CPU: {self.total_cpu_usage:.2f}%",
             f"RAM: {self.total_memory_usage:.2f} GB of {self.config['max_memory']:.2f} GB",
             f"     {self.expected_memory_usage:.2f} GB  (expected usage)",
-            f"     {self.config['max_memory_hard_limit']:.2f} GB  (hard limit)"
+            f"     {self.config['max_memory_hard_limit']:.2f} GB  (hard limit)",
             "",
             "-- Forecasts --",
             f"Remaining tasks: {self.tasks_total - self.tasks_completed}",
