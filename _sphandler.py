@@ -123,7 +123,7 @@ class SubprocessHandler:
             'metadata': self.config['metadata'][not_completed],
             'runtime': -1.0,
             'memory': -1.0,
-            'expected_runtime': 1.0,
+            'expected_runtime': 0.0,
             'expected_memory': self.config['pre_benchmark_expected_memory'],
             'start_time': 0.0,
             'completion_time': 0,
@@ -422,10 +422,9 @@ class SubprocessHandler:
                 meta_values = np.log(self.task_information.loc[self.task_information['remaining_to_do'], 'metadata'])
                 minimum_time, minimum_memory = np.exp(np.min(log_time)), np.exp(np.min(log_memory))
 
-                expected_times = np.exp(np.maximum(np.maximum(
-                    self._sampling_time, minimum_time), self._fit_time(meta_values)
-                ))
-                expected_memory = np.exp(np.maximum(minimum_memory, self._fit_memory(meta_values)))
+                expected_times = np.maximum(np.maximum(
+                    self._sampling_time, minimum_time), np.exp(self._fit_time(meta_values)))
+                expected_memory = np.maximum(minimum_memory, np.exp(self._fit_memory(meta_values)))
 
                 self.task_information.loc[self.task_information['remaining_to_do'], 'expected_runtime'] = expected_times
                 self.task_information.loc[self.task_information['remaining_to_do'], 'expected_memory'] = expected_memory
@@ -446,8 +445,11 @@ class SubprocessHandler:
                 )
 
                 if np.isfinite(expected_remaining_time):
-                    self.expected_finish_time = datetime.datetime.now() + datetime.timedelta(
-                        0, expected_remaining_time)
+                    try:
+                        self.expected_finish_time = datetime.datetime.now() + datetime.timedelta(
+                            0, expected_remaining_time)
+                    except Exception:
+                        self.expected_finish_time = SIX_SIX_SIX_THE_DEVILS_DATE
                 else:
                     self.expected_finish_time = SIX_SIX_SIX_THE_DEVILS_DATE
 
