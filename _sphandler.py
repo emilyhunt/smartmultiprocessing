@@ -576,7 +576,7 @@ class SubprocessHandler:
         else:
             # Show help text
             if keypress == "h":
-                self._keypress_info[1] = "Showing help text!"
+                self._keypress_info[1] = "h:help m:max n:lim t:threads p:plot c:clear"
 
             # Change maximum memory
             elif keypress == "m":
@@ -658,7 +658,32 @@ class SubprocessHandler:
     def run(self):
         self._main_logfile("Running subprocess handler.", send_to_print=True)
         curses.use_env(False)  # Allows window to be the wrong size without curses crashing
-        curses.wrapper(self._run_with_multiline_console)
+
+        # Try to run, if we hit an error we try to kill child processes & be informative
+        try:
+            curses.wrapper(self._run_with_multiline_console)
+
+        except Exception as e:
+
+            self._main_logfile("-- FATAL ERROR ENCOUNTERED --", send_to_print=True)
+            self._main_logfile(f"{e.__class__}: {str(e)}", send_to_print=True)
+            self._main_logfile("Killing all child processes!", send_to_print=True)
+
+            for i, a_process in enumerate(self.processes):
+                if a_process['process'] is not None:
+                    try:
+                        self._main_logfile(f"Killing process {i}, task {self.current_task_assignments[i]}",
+                                           send_to_print=True)
+                        self._kill_subprocess(i, "FATAL ERROR IN MAIN THREAD")
+
+                    # We don't stop raising the main error if a process can't be killed successfully!
+                    except Exception:
+                        pass
+
+            self._main_logfile("Child processes killed, terminating program. Bye =(", send_to_print=True)
+
+            raise e
+
         self._main_logfile("All done! Exiting run().", send_to_print=True)
 
     def _run_with_multiline_console(self, stdscr):
