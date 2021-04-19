@@ -389,7 +389,7 @@ class SubprocessHandler:
         self.processes[subprocess_to_start]['psutil_process'] = psutil.Process(
             self.processes[subprocess_to_start]['process'].pid)
 
-    def _fit_resource_usage(self):
+    def _fit_resource_usage(self, force_fit=False):
         """Updates fits to memory and CPU usage based on new datapoints, allowing the maximum number of subprocesses
         to be ran at any one time.
 
@@ -397,8 +397,11 @@ class SubprocessHandler:
         """
         # Firstly, let's only continue if we're outside of the benchmarking phase, also not allowing fits to only one
         # point, and also we only fit at specified intervals anyway
-        if (self.tasks_completed >= 6 and self.tasks_completed >= self.config['benchmarking_tasks'] and
-                self.tasks_completed - self.last_task_count_when_we_fitted > self.config['fit_update_interval']):
+        due_to_fit = (
+            (self.tasks_completed - self.last_task_count_when_we_fitted > self.config['fit_update_interval'])
+                 or force_fit)
+
+        if (self.tasks_completed >= 6 and self.tasks_completed >= self.config['benchmarking_tasks'] and due_to_fit):
             # Grab all of our logg'd data
             finished_tasks = np.invert(self.task_information['remaining_to_do'])
 
@@ -629,7 +632,7 @@ class SubprocessHandler:
             # Perform a fit
             elif keypress == "f":
                 self._keypress_info[1] = f"Performing a resource usage fit!"
-                self._fit_resource_usage()
+                self._fit_resource_usage(force_fit=True)
 
             elif keypress == "p":
                 self._keypress_info[1] = "Plotting current resource usage!"
