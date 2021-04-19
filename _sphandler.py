@@ -338,9 +338,8 @@ class SubprocessHandler:
                 break
 
             else:
-                # If we're yet to do a fit then we pick a task at random; otherwise, we pick the first available
-                # valid task.
-                if self._have_done_a_fit is False:
+                # Pick a task at random from everything we could try!
+                if self._have_done_a_fit is False or self.config['random_task_order']:
                     task_index = valid_tasks[valid_tasks].sample().index[0]
                 else:
                     task_index = valid_tasks.idxmax()
