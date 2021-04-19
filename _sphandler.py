@@ -80,6 +80,7 @@ class SubprocessHandler:
         # Fits for the stuff
         self._fit_time = None
         self._fit_memory = None
+        self._have_done_a_fit = False
 
         self._main_logfile("Initialisation complete!", send_to_print=True)
 
@@ -335,8 +336,15 @@ class SubprocessHandler:
             # Start a task if one is available, or leave the while loop
             if n_valid_tasks == 0:
                 break
+
             else:
-                task_index = valid_tasks.idxmax()
+                # If we're yet to do a fit then we pick a task at random; otherwise, we pick the first available
+                # valid task.
+                if self._have_done_a_fit is False:
+                    task_index = valid_tasks[valid_tasks].sample().index[0]
+                else:
+                    task_index = valid_tasks.idxmax()
+
                 self._start_subprocess(task_index)
                 available_memory -= self.task_information.loc[task_index, 'expected_memory']
                 subprocesses_started += 1
@@ -455,6 +463,8 @@ class SubprocessHandler:
                         self.expected_finish_time = SIX_SIX_SIX_THE_DEVILS_DATE
                 else:
                     self.expected_finish_time = SIX_SIX_SIX_THE_DEVILS_DATE
+
+                self._have_done_a_fit = True
 
                 # ... and make a plot if desired!
                 if self.tasks_completed - self.last_task_count_when_we_plotted > self.config['plot_update_interval']:
