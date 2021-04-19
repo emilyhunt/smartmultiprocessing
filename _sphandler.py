@@ -556,6 +556,14 @@ class SubprocessHandler:
             except ValueError:
                 self._reset_input(f"Unable to set limiting memory with this input!")
 
+        # Max number of fitting knots!
+        elif self._config_to_change == "fit_max_knots":
+            try:
+                self.config['fit_max_knots'] = int(self._current_input)
+                self._reset_input(f"Set max fit knots to {self.config['fit_max_knots']}")
+            except ValueError:
+                self._reset_input(f"Unable to set max fit knots with this input!")
+
         # Number of current threads!
         elif self._config_to_change == "threads":
             try:
@@ -589,7 +597,7 @@ class SubprocessHandler:
         else:
             # Show help text
             if keypress == "h":
-                self._keypress_info[1] = "h:help m:max n:lim t:threads p:plot c:clear"
+                self._keypress_info[1] = "h:help m:max n:lim t:threads p:plot c:clear k:knot f:fit"
 
             # Change maximum memory
             elif keypress == "m":
@@ -608,6 +616,17 @@ class SubprocessHandler:
                 self._keypress_info[1] = f"New number of threads (max {self.config['max_threads']}): "
                 self._current_input = ""
                 self._config_to_change = "threads"
+
+            # Change number of fit knots
+            elif keypress == "k":
+                self._keypress_info[1] = f"New number of fit knots: "
+                self._current_input = ""
+                self._config_to_change = "fit_max_knots"
+
+            # Perform a fit
+            elif keypress == "f":
+                self._keypress_info[1] = f"Performing a resource usage fit!"
+                self._fit_resource_usage()
 
             elif keypress == "p":
                 self._keypress_info[1] = "Plotting current resource usage!"
