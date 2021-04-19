@@ -391,7 +391,10 @@ class SubprocessHandler:
 
     def _fit_resource_usage(self):
         """Updates fits to memory and CPU usage based on new datapoints, allowing the maximum number of subprocesses
-        to be ran at any one time."""
+        to be ran at any one time.
+
+        Todo: a failed fit (e.g. due to bad knot placement) crashes the entire program.
+        """
         # Firstly, let's only continue if we're outside of the benchmarking phase, also not allowing fits to only one
         # point, and also we only fit at specified intervals anyway
         if (self.tasks_completed >= 6 and self.tasks_completed >= self.config['benchmarking_tasks'] and
