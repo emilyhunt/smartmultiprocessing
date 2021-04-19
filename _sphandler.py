@@ -705,8 +705,11 @@ class SubprocessHandler:
             completed_subprocesses, running_subprocesses = self._poll_subprocesses()
 
             # If anything has changed, then refit the memory/CPU usage and make new subprocesses if possible
-            if completed_subprocesses > 0 or running_subprocesses == 0:
+            if completed_subprocesses > 0:
                 self._fit_resource_usage()
+                subprocesses_started = self._create_subprocesses()
+
+            elif running_subprocesses == 0 or running_subprocesses < self.current_max_threads:
                 subprocesses_started = self._create_subprocesses()
 
             # Update the user
