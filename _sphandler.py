@@ -449,9 +449,10 @@ class SubprocessHandler:
                 self.expected_memory_usage = self.task_information.loc[
                     self.task_information['in_progress'], 'expected_memory'].sum()
 
+                # estimated_simultaneous_threads = max_memory / mean_expected_memory
                 estimated_simultaneous_threads = np.minimum(
-                    self.task_information.loc[self.task_information['remaining_to_do'], 'expected_memory'].mean()
-                    * self.config['max_threads']**2 / self.config['max_memory'],
+                    self.config['max_memory']
+                    / self.task_information.loc[self.task_information['remaining_to_do'], 'expected_memory'].mean(),
                     self.config['max_threads']
                 )
 
