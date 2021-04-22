@@ -7,6 +7,7 @@ import time
 import datetime
 import multiprocessing
 import psutil
+import signal
 import matplotlib.pyplot as plt
 import sys
 import warnings
@@ -84,19 +85,6 @@ class SubprocessHandler:
 
         self._main_logfile("Initialisation complete!", send_to_print=True)
 
-        # Compatibility - the current Python version controls whether or not we can use the Process.kill() method
-        if sys.version_info.major == 2:
-            raise RuntimeError("Why are you still using Python 2? Ask yourself, honestly: why?")
-        elif sys.version_info.major == 3 and sys.version_info.minor < 7:
-            warnings.warn(FutureWarning("You are currently using a Python version below 3.7 and will not have access "
-                                        "to more effective multithreading memory crisis management. If your target "
-                                        "function creates child processes then these cannot be killed in the event "
-                                        "of overmemory protection, which may cause overmemory protection to be "
-                                        "ineffective. Consider upgrading!"))
-            self._greater_than_python_3_6 = False
-        else:
-            self._greater_than_python_3_6 = True
-
     def _generate_task_info_dataframe(self):
         """Generates a task info dataframe in the initial startup of the program."""
         self._main_logfile("Generating initial task info dataframe...", send_to_print=True)
@@ -163,11 +151,24 @@ class SubprocessHandler:
 
         running_processes = (self.current_task_assignments != -1).nonzero()[0]
         for i in running_processes:
+            # Query the main process
             try:
                 self.process_cpu_usage[i] = self.processes[i]['psutil_process'].cpu_percent()
                 self.process_memory_usage[i] = self.processes[i]['psutil_process'].memory_info().rss / 1024**3
+
+                children = self.processes[i]['psutil_process'].children(recursive=True)
+
             except psutil.NoSuchProcess:
                 self.process_cpu_usage[i] = self.process_memory_usage[i] = 0.0
+                children = []
+
+            # Let's also get info about child processes
+            for a_child in children:
+                try:
+                    self.process_cpu_usage[i] += a_child.cpu_percent()
+                    self.process_memory_usage[i] += a_child.memory_info().rss / 1024**3
+                except psutil.NoSuchProcess:
+                    pass
 
         self.total_cpu_usage = np.sum(self.process_cpu_usage)
         self.total_memory_usage = np.sum(self.process_memory_usage)
@@ -230,18 +231,27 @@ class SubprocessHandler:
 
                         raise RuntimeError(error_message)
 
-    def _kill_subprocess(self, process_index, message):
+    def _kill_subprocess(self, process_index, message, emergency=False):
         """MURDERS a subprocess if it is MISBEHAVING. Does so immediately and resets info, other than making sure
         that it's known in the update to render to the screen that it had to be ended.
-        """
-        if self._greater_than_python_3_6:
-            self.processes[process_index]['process'].kill()
-        else:
-            self.processes[process_index]['process'].terminate()
 
-        self._close_subprocess(process_index, completed=False)
-        self.processes[process_index]['update'] = message
-        self._main_logfile(message)
+        If emergency=True, will just kill the process instead of trying to reset anything. Should only be called in
+        the event of a fatal error & child process termination.
+        """
+        # Ensure we get all children
+        children = self.processes[process_index]['psutil_process'].children(recursive=True)
+        processes_to_kill = [self.processes[process_index]['psutil_process']] + children
+
+        for p in processes_to_kill:
+            try:
+                p.send_signal(signal.SIGKILL)
+            except psutil.NoSuchProcess:
+                pass
+
+        if not emergency:
+            self._close_subprocess(process_index, completed=False)
+            self.processes[process_index]['update'] = message
+            self._main_logfile(message)
 
     def _close_subprocess(self, index_to_close, completed=True):
         """Softly closes a subprocess after it ends, resetting all of the slots' info attached to the class. If
@@ -712,7 +722,7 @@ class SubprocessHandler:
                     try:
                         self._main_logfile(f"Killing process {i}, task {self.current_task_assignments[i]}",
                                            send_to_print=True)
-                        self._kill_subprocess(i, "FATAL ERROR IN MAIN THREAD")
+                        self._kill_subprocess(i, "", emergency=True)
 
                     # We don't stop raising the main error if a process can't be killed successfully!
                     except Exception:
