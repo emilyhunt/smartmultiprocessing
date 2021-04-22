@@ -146,17 +146,19 @@ class SubprocessHandler:
         """Monitors the memory usage of the respective subprocesses and code. In the event of a memory limit being
         reached, this function will kill the lowest priority processes."""
         # Cycle over all processes, using psutil to get their total cpu and memory usages
-        self.process_cpu_usage = np.zeros(self.config['max_threads'])
         self.process_memory_usage = np.zeros(self.config['max_threads'])
 
         running_processes = (self.current_task_assignments != -1).nonzero()[0]
+        all_running_processes = []  # Includes children!
+
         for i in running_processes:
             # Query the main process
             try:
-                self.process_cpu_usage[i] = self.processes[i]['psutil_process'].cpu_percent()
                 self.process_memory_usage[i] = self.processes[i]['psutil_process'].memory_info().rss / 1024**3
 
+                all_running_processes.append(self.processes[i]['psutil_process'])
                 children = self.processes[i]['psutil_process'].children(recursive=True)
+                all_running_processes.extend(children)
 
             except psutil.NoSuchProcess:
                 self.process_cpu_usage[i] = self.process_memory_usage[i] = 0.0
@@ -165,13 +167,28 @@ class SubprocessHandler:
             # Let's also get info about child processes
             for a_child in children:
                 try:
-                    self.process_cpu_usage[i] += a_child.cpu_percent()
                     self.process_memory_usage[i] += a_child.memory_info().rss / 1024**3
                 except psutil.NoSuchProcess:
                     pass
 
-        self.total_cpu_usage = np.sum(self.process_cpu_usage)
         self.total_memory_usage = np.sum(self.process_memory_usage)
+
+        # Measure CPU usage (we have to sleep so that we can get a guaranteed accurate reading)
+        self.total_cpu_usage = 0
+
+        for a_process in all_running_processes:
+            try:
+                _ = a_process.cpu_percent()
+            except psutil.NoSuchProcess:
+                pass
+
+        time.sleep(0.1)
+
+        for a_process in all_running_processes:
+            try:
+                self.total_cpu_usage += a_process.cpu_percent()
+            except psutil.NoSuchProcess:
+                pass
 
         # Update the dataframe of task info
         running_tasks = self.current_task_assignments[running_processes]
