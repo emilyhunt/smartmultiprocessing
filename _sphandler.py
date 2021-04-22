@@ -545,6 +545,8 @@ class SubprocessHandler:
         # Output
         fig.savefig(self.config['logging_dir'] / f"resource_use.png", bbox_inches="tight")
 
+        plt.close(fig)
+
         self.last_task_count_when_we_plotted = self.tasks_completed
 
     def _generate_basic_message(self):
