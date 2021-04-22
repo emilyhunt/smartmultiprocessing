@@ -154,7 +154,7 @@ class SubprocessHandler:
         for i in running_processes:
             # Query the main process
             try:
-                self.process_memory_usage[i] = self.processes[i]['psutil_process'].memory_info().rss / 1024**3
+                self.process_memory_usage[i] = self.processes[i]['psutil_process'].memory_full_info().pss / 1024**3
 
                 all_running_processes.append(self.processes[i]['psutil_process'])
                 children = self.processes[i]['psutil_process'].children(recursive=True)
