@@ -214,8 +214,8 @@ class SubprocessHandler:
                 self._main_logfile("MEMORY HARD LIMIT EXCEEDED")
 
                 # Some info for an informative error message if this doesn't work
-                previous_running_tasks = self.current_task_assignments[running_processes].copy()
-                previous_memory_usages = self.process_memory_usage[running_processes].copy()
+                previous_running_tasks = self.current_task_assignments.copy()
+                previous_memory_usages = self.process_memory_usage.copy()
 
                 # Cycle, deleting 1 process at a time until we're ok
                 n_running_processes = len(running_processes)
