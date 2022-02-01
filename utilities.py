@@ -30,6 +30,7 @@ class Logfile:
         self.pipe = pipe
         self.pipe_on = True
         self.logfile_on = True
+        self.always_print = False
 
     def __call__(self, message: str, send_to_pipe: bool = True,
                  send_to_logfile: bool = True, send_to_print: bool = False):
@@ -41,7 +42,7 @@ class Logfile:
             with open(self.logfile, 'a') as file:
                 file.write(timestamp() + message + "\n")
 
-        if send_to_print:
+        if send_to_print or self.always_print:
             print(timestamp() + message)
 
     def set_pipe_on(self, state: bool):
@@ -49,3 +50,6 @@ class Logfile:
 
     def set_logfile_on(self, state: bool):
         self.logfile_on = state
+
+    def set_always_print(self, state: bool):
+        self.always_print = state
