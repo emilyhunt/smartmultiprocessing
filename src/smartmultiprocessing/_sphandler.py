@@ -1,4 +1,4 @@
-"""Definition of the main class of the module."""
+"""Definition of the main class of the old module."""
 
 import numpy as np
 import pandas as pd
@@ -34,6 +34,7 @@ class SubprocessHandler:
             Todo: update this fstring as I code more
 
         """
+        warnings.warn("SubprocessHandler will be deprecated in a future version.", DeprecationWarning)
         self.config = config
         self.config['logging_dir'].mkdir(exist_ok=True, parents=True)
         self._main_logfile = Logfile(self.config['logging_dir'] / f"main {timestamp(trailing_space=False)}.log")
