@@ -9,7 +9,6 @@ import multiprocessing
 import psutil
 import signal
 import matplotlib.pyplot as plt
-import sys
 import warnings
 
 from .utilities import timestamp, Logfile
@@ -407,7 +406,7 @@ class SubprocessHandler:
         )
 
         # Add a bit more info to the self.processes entry
-        self.processes[subprocess_to_start]['update'] = timestamp(date=False) + f"Initialising from main..."
+        self.processes[subprocess_to_start]['update'] = timestamp(date=False) + "Initialising from main..."
 
         # Start it!
         self.processes[subprocess_to_start]['process'].start()
@@ -506,7 +505,7 @@ class SubprocessHandler:
 
     def plot_resource_usage(self):
         """Makes a plot of the current resource usage fits for user inspection."""
-        self._main_logfile(f"plotting resource usage so far")
+        self._main_logfile("plotting resource usage so far")
 
         fig, ax = plt.subplots(nrows=2, ncols=1, dpi=100, figsize=(6, 6), sharex='all')
 
@@ -544,7 +543,7 @@ class SubprocessHandler:
         fig.subplots_adjust(hspace=0.05)
 
         # Output
-        fig.savefig(self.config['logging_dir'] / f"resource_use.png", bbox_inches="tight")
+        fig.savefig(self.config['logging_dir'] / "resource_use.png", bbox_inches="tight")
 
         plt.close(fig)
 
@@ -582,7 +581,7 @@ class SubprocessHandler:
                 self.config['max_memory'] = float(self._current_input)
                 self._reset_input(f"Set max memory to {self.config['max_memory']} GB")
             except ValueError:
-                self._reset_input(f"Unable to set max memory with this input!")
+                self._reset_input("Unable to set max memory with this input!")
 
         # Limiting memory before death!
         elif self._config_to_change == "limit_memory":
@@ -590,7 +589,7 @@ class SubprocessHandler:
                 self.config['max_memory_hard_limit'] = float(self._current_input)
                 self._reset_input(f"Set limiting memory to {self.config['max_memory_hard_limit']} GB")
             except ValueError:
-                self._reset_input(f"Unable to set limiting memory with this input!")
+                self._reset_input("Unable to set limiting memory with this input!")
 
         # Max number of fitting knots!
         elif self._config_to_change == "fit_max_knots":
@@ -598,7 +597,7 @@ class SubprocessHandler:
                 self.config['fit_max_knots'] = int(self._current_input)
                 self._reset_input(f"Set max fit knots to {self.config['fit_max_knots']}")
             except ValueError:
-                self._reset_input(f"Unable to set max fit knots with this input!")
+                self._reset_input("Unable to set max fit knots with this input!")
 
         # Number of current threads!
         elif self._config_to_change == "threads":
@@ -610,7 +609,7 @@ class SubprocessHandler:
                     self.config['target_threads'] = self.current_max_threads = target_threads
                     self._reset_input(f"Set number of threads to {self.config['target_threads']}")
             except ValueError:
-                self._reset_input(f"Unable to set number of threads with this input!")
+                self._reset_input("Unable to set number of threads with this input!")
 
     def _interpret_keypress(self, keypress):
         """If a key is pressed, this is where we'll present some different options to the user!"""
@@ -655,13 +654,13 @@ class SubprocessHandler:
 
             # Change number of fit knots
             elif keypress == "k":
-                self._keypress_info[1] = f"New number of fit knots: "
+                self._keypress_info[1] = "New number of fit knots: "
                 self._current_input = ""
                 self._config_to_change = "fit_max_knots"
 
             # Perform a fit
             elif keypress == "f":
-                self._keypress_info[1] = f"Performing a resource usage fit!"
+                self._keypress_info[1] = "Performing a resource usage fit!"
                 self._fit_resource_usage(force_fit=True)
 
             elif keypress == "p":
@@ -689,7 +688,7 @@ class SubprocessHandler:
         # Try to get a key press
         try:
             keypress = stdscr.getkey()
-        except CursesError as e:
+        except CursesError:
             keypress = None
 
         # If there has been a keypress, pass this to the interpreting function which will give some lines to show
@@ -772,10 +771,10 @@ class SubprocessHandler:
             # If anything has changed, then refit the memory/CPU usage and make new subprocesses if possible
             if completed_subprocesses > 0:
                 self._fit_resource_usage()
-                subprocesses_started = self._create_subprocesses()
+                self._create_subprocesses()
 
             elif running_subprocesses == 0 or running_subprocesses < self.current_max_threads:
-                subprocesses_started = self._create_subprocesses()
+                self._create_subprocesses()
 
             # Update the user
             self.step += 1

@@ -1,0 +1,8 @@
+{
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "workbench.colorCustomizations": {
+        "statusBar.background": "#2d5b6b",
+        "statusBar.foreground": "#ffffff"
+    }
+}
