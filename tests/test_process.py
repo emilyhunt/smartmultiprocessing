@@ -1,10 +1,22 @@
 import time
 
 import psutil
+import multiprocessing
 from smartmultiprocessing import SmartProcess
-from smartmultiprocessing.process import ReturnableFunctionWrapper
+from smartmultiprocessing.errors import NoResultError, ProcessFailedError, ProcessStillRunningError
+from smartmultiprocessing.process import pipe_return_function
 from .functions import sleeper, crasher, returner, allocator, cpu_user, childer
 import pytest
+
+
+def wait_until_children(process, wait_time=1):
+    start_time = time.time()
+    children = []
+    while time.time() < start_time + wait_time and len(children) == 0:
+        children = process.get_children()
+    if len(children) == 0:
+        raise RuntimeError("Unable to get child processes.")
+    return children
 
 
 def test_testing_functions():
@@ -24,20 +36,17 @@ def test_testing_functions():
     assert childer(0.1) == 0
 
 
-def test_ReturnableFunctionWrapper():
-    """Checks that ReturnableFunctionWrapper can return a result."""
-    func = ReturnableFunctionWrapper(returner)
+def test_pipe_return_function():
+    """Checks that pipe_return_function can return a result."""
+    result_pipe, send_pipe = multiprocessing.Pipe(duplex=False)
 
-    # Check that there's no result before running
-    assert func.get_result() is None
-
-    # Run & check result
-    func(1, kwarg_to_return="test")
-    result = func.get_result()
+    pipe_return_function(send_pipe, returner, 5, kwarg_to_return="val2")
+    assert result_pipe.poll(timeout=1)
+    result = result_pipe.recv()
     assert result is not None
     assert len(result) == 2
-    assert result[0] == 1
-    assert result[1] == "test"
+    assert result[0] == 5
+    assert result[1] == "val2"
 
 
 def test_SmartProcess_typical_use():
@@ -47,21 +56,10 @@ def test_SmartProcess_typical_use():
     process.join()
 
 
-def wait_until_children(process, wait_time=1):
-    """Convenience function for waiting until child processes have started."""
-    start_time = time.time()
-    children = []
-    while time.time() < start_time + wait_time and len(children) == 0:
-        children = process.get_children()
-    if len(children) == 0:
-        raise RuntimeError("Unable to get child processes.")
-    return children
-
-
 def test_SmartProcess_terminate():
     """Tests our ability to terminate a process."""
     # Without children
-    process = SmartProcess(target=sleeper, args=(60,))
+    process = SmartProcess(target=sleeper, args=(5,))
     process.start()
     assert process.is_alive()
     process.terminate(children=False)
@@ -70,7 +68,7 @@ def test_SmartProcess_terminate():
     assert process.is_alive() is False
 
     # With children
-    process = SmartProcess(target=childer, args=(60,))
+    process = SmartProcess(target=childer, args=(5,))
     process.start()
     assert process.is_alive()
 
@@ -88,7 +86,7 @@ def test_SmartProcess_terminate():
 def test_SmartProcess_kill():
     """Tests our ability to kill a process."""
     # Without children
-    process = SmartProcess(target=sleeper, args=(60,))
+    process = SmartProcess(target=sleeper, args=(5,))
     process.start()
     assert process.is_alive()
     process.kill(children=False)
@@ -97,7 +95,7 @@ def test_SmartProcess_kill():
     assert process.is_alive() is False
 
     # With children
-    process = SmartProcess(target=childer, args=(60,))
+    process = SmartProcess(target=childer, args=(5,))
     process.start()
     assert process.is_alive()
 
@@ -114,7 +112,7 @@ def test_SmartProcess_kill():
 
 def test_SmartProcess_get_children():
     """Tests our ability to get children of a process."""
-    process = SmartProcess(target=childer, args=(60,))
+    process = SmartProcess(target=childer, args=(5,))
     process.start()
 
     # Try to get children for upto a second
@@ -128,20 +126,48 @@ def test_SmartProcess_get_children():
 def test_SmartProcess_get_result():
     """Tests our ability to fetch a result from a process."""
     # Test that it raises an error if the process hasn't finished
-    process = SmartProcess(target=sleeper, args=(60,),)
+    process = SmartProcess(target=sleeper, args=(5,), fetch_result=True)
     process.start()
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProcessStillRunningError):
         process.get_result()
     process.kill()
 
     # Test that we get an error on a crash
-    process = SmartProcess(target=sleeper, args=(60,),)
+    process = SmartProcess(target=crasher, fetch_result=True)
     process.start()
-    with pytest.raises(RuntimeError):
-        process.get_result()
-    process.kill()
+    with pytest.raises(ProcessFailedError):
+        process.get_result(join=True)
+    try:
+        process.kill()
+    except psutil.NoSuchProcess:
+        pass
 
-
+    # Test that we can get a result!
     process = SmartProcess(
-        target=sleeper, args=("val1",), kwargs=dict(kwarg_to_return="val2", sleep=60)
+        target=returner,
+        args=("val1",),
+        kwargs=dict(kwarg_to_return=["val2", 5]),
+        fetch_result=True,
     )
+    process.start()
+    result = process.get_result(join=True)
+    assert process.get_exitcode() == 0
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "val1"
+    assert result[1] == ["val2", 5]
+
+    # Test that the pipe is empty now
+    with pytest.raises(NoResultError):
+        process.get_result(pipe_timeout=0.1)  # No timeout as we don't need to wait
+
+
+# if __name__ == "__main__":
+#     process = SmartProcess(
+#         target=returner,
+#         args=("val1",),
+#         kwargs=dict(kwarg_to_return=["val2", 5]),
+#         fetch_result=True,
+#     )
+#     process.start()
+#     process.join()
