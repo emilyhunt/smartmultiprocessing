@@ -1,3 +1,6 @@
+[![docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://smartmultiprocessing.org)
+[![Build Docs](https://github.com/emilyhunt/smartmultiprocessing/actions/workflows/build-docs.yml/badge.svg)](https://smartmultiprocessing.org)
+
 # SmartMultiprocessing
 A drop-in replacement for Python's `multiprocessing` library with many extra features, including: memory management, smart task scheduling, a pause button, a GUI, and more.
 
