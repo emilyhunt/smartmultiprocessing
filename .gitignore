@@ -1,6 +1,7 @@
 ### ADDITIONAL
 # VS Code workspace
 *.code-workspace
+.vscode/
 
 
 ### DEFAULT PYTHON
