@@ -17,11 +17,11 @@ class ReturnableFunctionWrapper:
             return self.result_pipe.recv()
         else:
             return None
-        
+
     def __call__(self, *args: Any, **kwargs: Any):
         result = self.target(*args, **kwargs)
         self.send_pipe.send(result)
-        
+
 
 class SmartProcess:
     def __init__(
@@ -39,7 +39,7 @@ class SmartProcess:
             self.target = ReturnableFunctionWrapper(target=target)
         else:
             self.target = target
-        
+
         self.process = multiprocessing.Process(
             group=group,
             target=target,
@@ -89,7 +89,7 @@ class SmartProcess:
 
         if interval is None:
             return cpu_percent
-        
+
     def get_result(self, timeout: Optional[float] = None):
         if not self.fetch_result:
             raise ValueError(
@@ -99,7 +99,7 @@ class SmartProcess:
         if timeout is not None:
             self.process.join(timeout)
         return self.target.get_result()
-    
+
     def get_exitcode(self):
         return self.process.exitcode
 

@@ -17,11 +17,12 @@ from scipy.interpolate import LSQUnivariateSpline
 from _curses import error as CursesError
 
 
-SIX_SIX_SIX_THE_DEVILS_DATE = datetime.datetime(year=6666, month=6, day=6, hour=6, minute=6, second=6)
+SIX_SIX_SIX_THE_DEVILS_DATE = datetime.datetime(
+    year=6666, month=6, day=6, hour=6, minute=6, second=6
+)
 
 
 class SubprocessHandler:
-
     def __init__(self, config: dict):
         """The SubprocessHandler is an advanced but lightweight class for distributed running of tasks on multiple
         cores.
@@ -33,45 +34,63 @@ class SubprocessHandler:
             Todo: update this fstring as I code more
 
         """
-        warnings.warn("SubprocessHandler will be deprecated in a future version.", DeprecationWarning)
+        warnings.warn(
+            "SubprocessHandler will be deprecated in a future version.",
+            DeprecationWarning,
+        )
         self.config = config
-        self.config['logging_dir'].mkdir(exist_ok=True, parents=True)
-        self._main_logfile = Logfile(self.config['logging_dir'] / f"main {timestamp(trailing_space=False)}.log")
+        self.config["logging_dir"].mkdir(exist_ok=True, parents=True)
+        self._main_logfile = Logfile(
+            self.config["logging_dir"] / f"main {timestamp(trailing_space=False)}.log"
+        )
 
         self._main_logfile("Initialising SubprocessHandler...", send_to_print=True)
 
         # Storage space for processes themselves
-        self.current_task_assignments = np.full(self.config['max_threads'], -1)  # Array indicating target index of each
-        self.default_process_dict = {'update': '-', 'process': None,
-                                     'fuck_you_pycharm': Optional[multiprocessing.Process]}
-        self.processes = [self.default_process_dict.copy() for i in range(self.config['max_threads'])]
+        self.current_task_assignments = np.full(
+            self.config["max_threads"], -1
+        )  # Array indicating target index of each
+        self.default_process_dict = {
+            "update": "-",
+            "process": None,
+            "fuck_you_pycharm": Optional[multiprocessing.Process],
+        }
+        self.processes = [
+            self.default_process_dict.copy() for i in range(self.config["max_threads"])
+        ]
 
-        if self.config['benchmarking_tasks'] > 0:
+        if self.config["benchmarking_tasks"] > 0:
             self.current_max_threads = 1
         else:
-            self.current_max_threads = self.config['target_threads']
+            self.current_max_threads = self.config["target_threads"]
 
         # Some numbers on current tasks
-        self.tasks_total = len(config['args'])
+        self.tasks_total = len(config["args"])
         self.tasks_completed = 0
         self.last_task_count_when_we_fitted = 0
         self.last_task_count_when_we_plotted = 0
 
         # Generate a more sophisticated dataframe of task info storage
-        self._sampling_time = 1 * self.config['main_thread_sleep_time']  # Needed for fits
-        self.task_information, self.completed_tasks_csv_file, self.write_header = None, None, None
+        self._sampling_time = (
+            1 * self.config["main_thread_sleep_time"]
+        )  # Needed for fits
+        self.task_information, self.completed_tasks_csv_file, self.write_header = (
+            None,
+            None,
+            None,
+        )
         self._generate_task_info_dataframe()
 
         # Display settings
-        self.padding = len(str(self.config['max_threads']))
+        self.padding = len(str(self.config["max_threads"]))
         self._last_window_size = (24, 24)
         self._keypress_info = ["", ""]
         self._current_input = ""
         self._config_to_change = None
 
         # Resource tracking space
-        self.process_cpu_usage = np.zeros(self.config['max_threads'])
-        self.process_memory_usage = np.zeros(self.config['max_threads'])
+        self.process_cpu_usage = np.zeros(self.config["max_threads"])
+        self.process_memory_usage = np.zeros(self.config["max_threads"])
         self.total_cpu_usage = 0.0
         self.total_memory_usage = 0.0
         self.expected_memory_usage = 0.0
@@ -87,13 +106,18 @@ class SubprocessHandler:
 
     def _generate_task_info_dataframe(self):
         """Generates a task info dataframe in the initial startup of the program."""
-        self._main_logfile("Generating initial task info dataframe...", send_to_print=True)
+        self._main_logfile(
+            "Generating initial task info dataframe...", send_to_print=True
+        )
         # Look for an existing df
-        completed_tasks_log = self.config['logging_dir'] / f"{self.config['run_name']}_completed_tasks.csv"
+        completed_tasks_log = (
+            self.config["logging_dir"]
+            / f"{self.config['run_name']}_completed_tasks.csv"
+        )
         if completed_tasks_log.exists():
             existing_task_information = pd.read_csv(completed_tasks_log)
-            existing_task_information['in_progress'] = False  # duh,,, we just started
-            completed_tasks = existing_task_information['args'].to_numpy()
+            existing_task_information["in_progress"] = False  # duh,,, we just started
+            completed_tasks = existing_task_information["args"].to_numpy()
             write_header = False
         else:
             existing_task_information = None
@@ -101,32 +125,43 @@ class SubprocessHandler:
             write_header = True
 
         # Generate a blank df with every task to run on, ignoring tasks that are already done
-        not_completed = np.isin(self.config['args'], completed_tasks, invert=True)
+        not_completed = np.isin(self.config["args"], completed_tasks, invert=True)
 
         n_not_completed = np.count_nonzero(not_completed)
         if n_not_completed == 0:
-            raise RuntimeError("no uncompleted tasks found! It looks like this job has already been done (or like "
-                               "something has gone wrong. Are there actually any tasks in your config?)")
+            raise RuntimeError(
+                "no uncompleted tasks found! It looks like this job has already been done (or like "
+                "something has gone wrong. Are there actually any tasks in your config?)"
+            )
 
-        task_information = pd.DataFrame({
-            'args': self.config['args'][not_completed],
-            'metadata': self.config['metadata'][not_completed],
-            'runtime': -1.0,
-            'memory': -1.0,
-            'expected_runtime': 0.0,
-            'expected_memory': self.config['pre_benchmark_expected_memory'],
-            'start_time': 0.0,
-            'completion_time': 0,
-            'in_progress': False,
-            'remaining_to_do': True,
-        })
+        task_information = pd.DataFrame(
+            {
+                "args": self.config["args"][not_completed],
+                "metadata": self.config["metadata"][not_completed],
+                "runtime": -1.0,
+                "memory": -1.0,
+                "expected_runtime": 0.0,
+                "expected_memory": self.config["pre_benchmark_expected_memory"],
+                "start_time": 0.0,
+                "completion_time": 0,
+                "in_progress": False,
+                "remaining_to_do": True,
+            }
+        )
 
         # If there was indeed existing information, then we can add this and also do a little fit
         if existing_task_information is not None:
-            task_information = pd.concat([existing_task_information, task_information], ignore_index=True)
-            self.tasks_completed = np.count_nonzero(np.invert(task_information['remaining_to_do']))
+            task_information = pd.concat(
+                [existing_task_information, task_information], ignore_index=True
+            )
+            self.tasks_completed = np.count_nonzero(
+                np.invert(task_information["remaining_to_do"])
+            )
             self.last_task_count_when_we_plotted = self.tasks_completed
-            self._main_logfile(f"  found {self.tasks_completed} already completed tasks!", send_to_print=True)
+            self._main_logfile(
+                f"  found {self.tasks_completed} already completed tasks!",
+                send_to_print=True,
+            )
 
         self.task_information = task_information
         self.completed_tasks_csv_file = completed_tasks_log
@@ -139,14 +174,19 @@ class SubprocessHandler:
     def _update_task_info_dataframe_on_disk(self, indexes_to_write):
         """Appends a line or lines to the task info dataframe. Will write a header if the file didn't exist before."""
         lines_to_append = self.task_information.loc[np.atleast_1d(indexes_to_write)]
-        lines_to_append.to_csv(self.completed_tasks_csv_file, index=False, mode='a', header=self.write_header)
+        lines_to_append.to_csv(
+            self.completed_tasks_csv_file,
+            index=False,
+            mode="a",
+            header=self.write_header,
+        )
         self.write_header = False
 
     def _check_memory_usage(self):
         """Monitors the memory usage of the respective subprocesses and code. In the event of a memory limit being
         reached, this function will kill the lowest priority processes."""
         # Cycle over all processes, using psutil to get their total cpu and memory usages
-        self.process_memory_usage = np.zeros(self.config['max_threads'])
+        self.process_memory_usage = np.zeros(self.config["max_threads"])
 
         running_processes = (self.current_task_assignments != -1).nonzero()[0]
         all_running_processes = []  # Includes children!
@@ -154,10 +194,12 @@ class SubprocessHandler:
         for i in running_processes:
             # Query the main process
             try:
-                self.process_memory_usage[i] = self.processes[i]['psutil_process'].memory_full_info().pss / 1024**3
+                self.process_memory_usage[i] = (
+                    self.processes[i]["psutil_process"].memory_full_info().pss / 1024**3
+                )
 
-                all_running_processes.append(self.processes[i]['psutil_process'])
-                children = self.processes[i]['psutil_process'].children(recursive=True)
+                all_running_processes.append(self.processes[i]["psutil_process"])
+                children = self.processes[i]["psutil_process"].children(recursive=True)
                 all_running_processes.extend(children)
 
             except psutil.NoSuchProcess:
@@ -193,24 +235,27 @@ class SubprocessHandler:
         # Update the dataframe of task info
         running_tasks = self.current_task_assignments[running_processes]
         new_memory_is_higher = (
-                self.process_memory_usage[running_processes] > self.task_information.loc[running_tasks, 'memory'])
+            self.process_memory_usage[running_processes]
+            > self.task_information.loc[running_tasks, "memory"]
+        )
 
-        self.task_information.loc[running_tasks[new_memory_is_higher], 'memory'] = (
-            self.process_memory_usage[running_processes[new_memory_is_higher]])
+        self.task_information.loc[
+            running_tasks[new_memory_is_higher], "memory"
+        ] = self.process_memory_usage[running_processes[new_memory_is_higher]]
 
         # Do something if the memory usage is over our tolerance
-        if self.total_memory_usage > self.config['max_memory_hard_limit']:
-
+        if self.total_memory_usage > self.config["max_memory_hard_limit"]:
             # We can deal with this by either raising an error...
-            if self.config['overmemory_raise_error']:
-                raise RuntimeError("process has encountered an overmemory event and had to close! Last measursed at "
-                                   f"{self.total_memory_usage} GB of RAM.")
+            if self.config["overmemory_raise_error"]:
+                raise RuntimeError(
+                    "process has encountered an overmemory event and had to close! Last measursed at "
+                    f"{self.total_memory_usage} GB of RAM."
+                )
 
             # ... or by finding processes to kill based on their age. We'll kill processes until the total memory usage
             # is small enough. We kill the youngest processes first ("the younglings, AnakinSkywalker.py") as they've
             # had the lowest CPU time investment so far.
             else:
-
                 self._main_logfile("MEMORY HARD LIMIT EXCEEDED")
 
                 # Some info for an informative error message if this doesn't work
@@ -219,30 +264,42 @@ class SubprocessHandler:
 
                 # Cycle, deleting 1 process at a time until we're ok
                 n_running_processes = len(running_processes)
-                while self.total_memory_usage > self.config['max_memory']:
-                    index_of_task_to_kill = self.task_information.loc[running_tasks, 'start_time'].idxmax()
-                    index_of_process_to_kill = (self.current_task_assignments == index_of_task_to_kill).nonzero()[0][0]
+                while self.total_memory_usage > self.config["max_memory"]:
+                    index_of_task_to_kill = self.task_information.loc[
+                        running_tasks, "start_time"
+                    ].idxmax()
+                    index_of_process_to_kill = (
+                        self.current_task_assignments == index_of_task_to_kill
+                    ).nonzero()[0][0]
 
-                    self.total_memory_usage -= self.process_memory_usage[index_of_process_to_kill]
+                    self.total_memory_usage -= self.process_memory_usage[
+                        index_of_process_to_kill
+                    ]
 
                     self._kill_subprocess(
                         index_of_process_to_kill,
                         f"KILLED due to overmemory: task {previous_running_tasks[index_of_process_to_kill]} with "
-                        f"{previous_memory_usages[index_of_process_to_kill]:.3f} GB memory last"
+                        f"{previous_memory_usages[index_of_process_to_kill]:.3f} GB memory last",
                     )
 
-                    running_processes = (self.current_task_assignments != -1).nonzero()[0]
+                    running_processes = (self.current_task_assignments != -1).nonzero()[
+                        0
+                    ]
                     running_tasks = self.current_task_assignments[running_processes]
                     n_running_processes = len(running_processes)
 
                     # If killing all processes was necessary to fix this then that means at least one task was using too
                     # much memory!
                     if n_running_processes == 0:
-                        error_message = ["in order to save an out of memory issue, I had to kill *all* subprocesses. "
-                                         "This means that one subprocess alone was overusing the entire memory "
-                                         "budget. The following tasks were running, including their memory use:"]
+                        error_message = [
+                            "in order to save an out of memory issue, I had to kill *all* subprocesses. "
+                            "This means that one subprocess alone was overusing the entire memory "
+                            "budget. The following tasks were running, including their memory use:"
+                        ]
 
-                        for a_task, a_memory in zip(previous_running_tasks, previous_memory_usages):
+                        for a_task, a_memory in zip(
+                            previous_running_tasks, previous_memory_usages
+                        ):
                             error_message.append(f"{a_task}: {a_memory} GB")
                         error_message = "\n".join(error_message)
 
@@ -256,8 +313,10 @@ class SubprocessHandler:
         the event of a fatal error & child process termination.
         """
         # Ensure we get all children
-        children = self.processes[process_index]['psutil_process'].children(recursive=True)
-        processes_to_kill = [self.processes[process_index]['psutil_process']] + children
+        children = self.processes[process_index]["psutil_process"].children(
+            recursive=True
+        )
+        processes_to_kill = [self.processes[process_index]["psutil_process"]] + children
 
         for p in processes_to_kill:
             try:
@@ -267,7 +326,7 @@ class SubprocessHandler:
 
         if not emergency:
             self._close_subprocess(process_index, completed=False)
-            self.processes[process_index]['update'] = message
+            self.processes[process_index]["update"] = message
             self._main_logfile(message)
 
     def _close_subprocess(self, index_to_close, completed=True):
@@ -278,18 +337,23 @@ class SubprocessHandler:
         previous_task = self.current_task_assignments[index_to_close]
         self.current_task_assignments[index_to_close] = -1
         self.tasks_completed += 1
-        self.expected_memory_usage -= self.task_information.loc[previous_task, 'expected_memory']
+        self.expected_memory_usage -= self.task_information.loc[
+            previous_task, "expected_memory"
+        ]
         self.process_cpu_usage[index_to_close] = 0
         self.process_memory_usage[index_to_close] = 0
 
         # Write to the tasks dataframe and save that it's done (that is, if it's actually done...)
-        self.task_information.loc[previous_task, 'in_progress'] = False
+        self.task_information.loc[previous_task, "in_progress"] = False
 
         if completed:
-            self.task_information.loc[previous_task, 'runtime'] = (
-                    time.time() - self.task_information.loc[previous_task, 'start_time'])
-            self.task_information.loc[previous_task, 'completion_time'] = datetime.datetime.now()
-            self.task_information.loc[previous_task, 'remaining_to_do'] = False
+            self.task_information.loc[previous_task, "runtime"] = (
+                time.time() - self.task_information.loc[previous_task, "start_time"]
+            )
+            self.task_information.loc[
+                previous_task, "completion_time"
+            ] = datetime.datetime.now()
+            self.task_information.loc[previous_task, "remaining_to_do"] = False
             self._update_task_info_dataframe_on_disk(previous_task)
 
         # Reset the entry in the process list
@@ -306,14 +370,15 @@ class SubprocessHandler:
         running_subprocesses = 0
         for i, a_process in enumerate(self.processes):
             # We only do work if the process even is running rn
-            if a_process['process'] is not None:
-
+            if a_process["process"] is not None:
                 running_subprocesses += 1
 
                 # See if the task has finished
-                exitcode = a_process['process'].exitcode
+                exitcode = a_process["process"].exitcode
                 if exitcode is not None:
-                    self._main_logfile(f"task {self.current_task_assignments[i]}: finished with exitcode {exitcode}")
+                    self._main_logfile(
+                        f"task {self.current_task_assignments[i]}: finished with exitcode {exitcode}"
+                    )
                     completed_subprocesses += 1
 
                     # If it exited successfully, we reset the slot and record relevant info
@@ -322,21 +387,26 @@ class SubprocessHandler:
 
                     # Otherwise, we raise an error
                     else:
-                        raise ValueError(f"Process {i} failed while working on task {self.current_task_assignments[i]}")
+                        raise ValueError(
+                            f"Process {i} failed while working on task {self.current_task_assignments[i]}"
+                        )
 
                 # If not, look for updates (we cycle over multiple updates if there are lots to get)
                 else:
                     try:
-                        while a_process['pipe'].poll():
-                            a_process['update'] = a_process['pipe'].recv()
+                        while a_process["pipe"].poll():
+                            a_process["update"] = a_process["pipe"].recv()
 
                     except EOFError:
-                        a_process['update'] = timestamp(date=False) + "unable to receive update (EOFError on pipe)"
+                        a_process["update"] = (
+                            timestamp(date=False)
+                            + "unable to receive update (EOFError on pipe)"
+                        )
 
         # If we've done enough tasks to get a good enough benchmark, then allow the benchmarking thread lock to be
         # lifted.
-        if self.tasks_completed > self.config['benchmarking_tasks']:
-            self.current_max_threads = self.config['target_threads']
+        if self.tasks_completed > self.config["benchmarking_tasks"]:
+            self.current_max_threads = self.config["target_threads"]
 
         return completed_subprocesses, running_subprocesses
 
@@ -346,17 +416,21 @@ class SubprocessHandler:
         running_subprocesses = np.count_nonzero(self.current_task_assignments != -1)
 
         # Next, calculate how many processes we *could* run
-        available_memory = self.config['max_memory'] - np.max([self.total_memory_usage, self.expected_memory_usage])
+        available_memory = self.config["max_memory"] - np.max(
+            [self.total_memory_usage, self.expected_memory_usage]
+        )
         max_subprocesses_to_start = self.current_max_threads - running_subprocesses
 
         # Start as many subprocesses as possible, if possible!
         subprocesses_started = 0
         while available_memory > 0 and subprocesses_started < max_subprocesses_to_start:
             # Try and find valid tasks
-            valid_tasks = np.logical_and(np.logical_and(
-                    np.invert(self.task_information['in_progress']),
-                    self.task_information['remaining_to_do']),
-                    self.task_information['expected_memory'] < available_memory
+            valid_tasks = np.logical_and(
+                np.logical_and(
+                    np.invert(self.task_information["in_progress"]),
+                    self.task_information["remaining_to_do"],
+                ),
+                self.task_information["expected_memory"] < available_memory,
             )
             n_valid_tasks = np.count_nonzero(valid_tasks)
 
@@ -366,13 +440,15 @@ class SubprocessHandler:
 
             else:
                 # Pick a task at random from everything we could try!
-                if self._have_done_a_fit is False or self.config['random_task_order']:
+                if self._have_done_a_fit is False or self.config["random_task_order"]:
                     task_index = valid_tasks[valid_tasks].sample().index[0]
                 else:
                     task_index = valid_tasks.idxmax()
 
                 self._start_subprocess(task_index)
-                available_memory -= self.task_information.loc[task_index, 'expected_memory']
+                available_memory -= self.task_information.loc[
+                    task_index, "expected_memory"
+                ]
                 subprocesses_started += 1
 
         return subprocesses_started
@@ -381,39 +457,48 @@ class SubprocessHandler:
         """Starts a new subprocess and assigns it to all the right stuff."""
         subprocess_to_start = (self.current_task_assignments == -1).nonzero()[0][0]
 
-        self._main_logfile(f"task {task_index}: starting on process {subprocess_to_start}")
+        self._main_logfile(
+            f"task {task_index}: starting on process {subprocess_to_start}"
+        )
 
         # Update internal running info
         self.current_task_assignments[subprocess_to_start] = task_index
-        self.task_information.loc[task_index, 'in_progress'] = True
-        self.task_information.loc[task_index, 'start_time'] = time.time()
-        self.expected_memory_usage += self.task_information.loc[task_index, 'expected_memory']
+        self.task_information.loc[task_index, "in_progress"] = True
+        self.task_information.loc[task_index, "start_time"] = time.time()
+        self.expected_memory_usage += self.task_information.loc[
+            task_index, "expected_memory"
+        ]
 
         # Make a communication pipe and a logger for the process
         pipe_end, pipe_start = multiprocessing.Pipe()
-        self.processes[subprocess_to_start]['pipe'] = pipe_end
+        self.processes[subprocess_to_start]["pipe"] = pipe_end
 
         new_logger = Logfile(
-            self.config['logging_dir'] / f"{task_index} {timestamp(trailing_space=False)}.log", pipe_start
+            self.config["logging_dir"]
+            / f"{task_index} {timestamp(trailing_space=False)}.log",
+            pipe_start,
         )
 
         # Intialise the process!
-        self.processes[subprocess_to_start]['process'] = multiprocessing.Process(
-            target=self.config['function'],
+        self.processes[subprocess_to_start]["process"] = multiprocessing.Process(
+            target=self.config["function"],
             name=task_index,
-            args=(new_logger, self.task_information.loc[task_index, 'args']),
-            kwargs=self.config['kwargs'],
+            args=(new_logger, self.task_information.loc[task_index, "args"]),
+            kwargs=self.config["kwargs"],
         )
 
         # Add a bit more info to the self.processes entry
-        self.processes[subprocess_to_start]['update'] = timestamp(date=False) + "Initialising from main..."
+        self.processes[subprocess_to_start]["update"] = (
+            timestamp(date=False) + "Initialising from main..."
+        )
 
         # Start it!
-        self.processes[subprocess_to_start]['process'].start()
+        self.processes[subprocess_to_start]["process"].start()
 
         # Lastly, now that we can get its pid, we can make a psutil process for monitoring resource usage
-        self.processes[subprocess_to_start]['psutil_process'] = psutil.Process(
-            self.processes[subprocess_to_start]['process'].pid)
+        self.processes[subprocess_to_start]["psutil_process"] = psutil.Process(
+            self.processes[subprocess_to_start]["process"].pid
+        )
 
     def _fit_resource_usage(self, force_fit=False):
         """Updates fits to memory and CPU usage based on new datapoints, allowing the maximum number of subprocesses
@@ -424,74 +509,124 @@ class SubprocessHandler:
         # Firstly, let's only continue if we're outside of the benchmarking phase, also not allowing fits to only one
         # point, and also we only fit at specified intervals anyway
         due_to_fit = (
-            (self.tasks_completed - self.last_task_count_when_we_fitted > self.config['fit_update_interval'])
-                 or force_fit)
+            self.tasks_completed - self.last_task_count_when_we_fitted
+            > self.config["fit_update_interval"]
+        ) or force_fit
 
-        if (self.tasks_completed >= 6 and self.tasks_completed >= self.config['benchmarking_tasks'] and due_to_fit):
+        if (
+            self.tasks_completed >= 6
+            and self.tasks_completed >= self.config["benchmarking_tasks"]
+            and due_to_fit
+        ):
             # Grab all of our logg'd data
-            finished_tasks = np.invert(self.task_information['remaining_to_do'])
+            finished_tasks = np.invert(self.task_information["remaining_to_do"])
 
-            log_x = np.log(self.task_information.loc[finished_tasks, 'metadata'].to_numpy())
-            log_time = np.log(self.task_information.loc[finished_tasks, 'runtime'].to_numpy())
-            log_memory = np.log(self.task_information.loc[finished_tasks, 'memory'].to_numpy())
-            valid_memories = np.isfinite(log_memory)  # Occasionally we'll get zeroes here due to how it's measured!
+            log_x = np.log(
+                self.task_information.loc[finished_tasks, "metadata"].to_numpy()
+            )
+            log_time = np.log(
+                self.task_information.loc[finished_tasks, "runtime"].to_numpy()
+            )
+            log_memory = np.log(
+                self.task_information.loc[finished_tasks, "memory"].to_numpy()
+            )
+            valid_memories = np.isfinite(
+                log_memory
+            )  # Occasionally we'll get zeroes here due to how it's measured!
 
             # Only continue if we're still better than the threshold
             if np.count_nonzero(valid_memories) >= 6:
                 log_x, log_time, log_memory = (
-                    log_x[valid_memories], log_time[valid_memories], log_memory[valid_memories])
+                    log_x[valid_memories],
+                    log_time[valid_memories],
+                    log_memory[valid_memories],
+                )
 
                 # Also, we need to sort them all
                 sort_args = np.argsort(log_x)
                 log_x, log_time, log_memory = (
-                    log_x[sort_args], log_time[sort_args], log_memory[sort_args])
+                    log_x[sort_args],
+                    log_time[sort_args],
+                    log_memory[sort_args],
+                )
 
                 # Create appropriate knot locations
-                n_knots = int(np.minimum(np.floor((self.tasks_completed - 3)/2), self.config['fit_max_knots']))
-                knots, knot_spacing = np.linspace(log_x[0], log_x[-1], num=n_knots, endpoint=False, retstep=True)
+                n_knots = int(
+                    np.minimum(
+                        np.floor((self.tasks_completed - 3) / 2),
+                        self.config["fit_max_knots"],
+                    )
+                )
+                knots, knot_spacing = np.linspace(
+                    log_x[0], log_x[-1], num=n_knots, endpoint=False, retstep=True
+                )
                 knots += knot_spacing / 2  # Knots for LSQUnivariateSpline can't be
 
                 # Make a couple of fits
                 self._fit_time = LSQUnivariateSpline(
-                    log_x, log_time, knots, k=1, ext='extrapolate', check_finite=True)
+                    log_x, log_time, knots, k=1, ext="extrapolate", check_finite=True
+                )
                 self._fit_memory = LSQUnivariateSpline(
-                    log_x, log_memory, knots, k=1, ext='extrapolate', check_finite=True)
+                    log_x, log_memory, knots, k=1, ext="extrapolate", check_finite=True
+                )
 
                 # Evaluate the expected resources of everything left to do, also correcting for:
                 # - the fact that our sampling at short runtimes is likely to be poor
                 # - if the fit predicts negative values (we force it to at least be the minimum)
                 # - the fact that we're still in log land!
-                meta_values = np.log(self.task_information.loc[self.task_information['remaining_to_do'], 'metadata'])
-                minimum_time, minimum_memory = np.exp(np.min(log_time)), np.exp(np.min(log_memory))
+                meta_values = np.log(
+                    self.task_information.loc[
+                        self.task_information["remaining_to_do"], "metadata"
+                    ]
+                )
+                minimum_time, minimum_memory = (
+                    np.exp(np.min(log_time)),
+                    np.exp(np.min(log_memory)),
+                )
 
-                expected_times = np.maximum(np.maximum(
-                    self._sampling_time, minimum_time), np.exp(self._fit_time(meta_values)))
-                expected_memory = np.maximum(minimum_memory, np.exp(self._fit_memory(meta_values)))
+                expected_times = np.maximum(
+                    np.maximum(self._sampling_time, minimum_time),
+                    np.exp(self._fit_time(meta_values)),
+                )
+                expected_memory = np.maximum(
+                    minimum_memory, np.exp(self._fit_memory(meta_values))
+                )
 
-                self.task_information.loc[self.task_information['remaining_to_do'], 'expected_runtime'] = expected_times
-                self.task_information.loc[self.task_information['remaining_to_do'], 'expected_memory'] = expected_memory
+                self.task_information.loc[
+                    self.task_information["remaining_to_do"], "expected_runtime"
+                ] = expected_times
+                self.task_information.loc[
+                    self.task_information["remaining_to_do"], "expected_memory"
+                ] = expected_memory
 
                 # Finally, let's also update the stats for currently running stuff
                 self.last_task_count_when_we_fitted = self.tasks_completed
                 self.expected_memory_usage = self.task_information.loc[
-                    self.task_information['in_progress'], 'expected_memory'].sum()
+                    self.task_information["in_progress"], "expected_memory"
+                ].sum()
 
                 # estimated_simultaneous_threads = max_memory / mean_expected_memory
                 estimated_simultaneous_threads = np.minimum(
-                    self.config['max_memory']
-                    / self.task_information.loc[self.task_information['remaining_to_do'], 'expected_memory'].mean(),
-                    self.config['max_threads']
+                    self.config["max_memory"]
+                    / self.task_information.loc[
+                        self.task_information["remaining_to_do"], "expected_memory"
+                    ].mean(),
+                    self.config["max_threads"],
                 )
 
                 expected_remaining_time = (
-                    self.task_information.loc[self.task_information['remaining_to_do'], 'expected_runtime'].sum()
+                    self.task_information.loc[
+                        self.task_information["remaining_to_do"], "expected_runtime"
+                    ].sum()
                     / estimated_simultaneous_threads
                 )
 
                 if np.isfinite(expected_remaining_time):
                     try:
-                        self.expected_finish_time = datetime.datetime.now() + datetime.timedelta(
-                            0, expected_remaining_time)
+                        self.expected_finish_time = (
+                            datetime.datetime.now()
+                            + datetime.timedelta(0, expected_remaining_time)
+                        )
                     except Exception:
                         self.expected_finish_time = SIX_SIX_SIX_THE_DEVILS_DATE
                 else:
@@ -500,23 +635,26 @@ class SubprocessHandler:
                 self._have_done_a_fit = True
 
                 # ... and make a plot if desired!
-                if self.tasks_completed - self.last_task_count_when_we_plotted > self.config['plot_update_interval']:
+                if (
+                    self.tasks_completed - self.last_task_count_when_we_plotted
+                    > self.config["plot_update_interval"]
+                ):
                     self.plot_resource_usage()
 
     def plot_resource_usage(self):
         """Makes a plot of the current resource usage fits for user inspection."""
         self._main_logfile("plotting resource usage so far")
 
-        fig, ax = plt.subplots(nrows=2, ncols=1, dpi=100, figsize=(6, 6), sharex='all')
+        fig, ax = plt.subplots(nrows=2, ncols=1, dpi=100, figsize=(6, 6), sharex="all")
 
         # Firstly, let's plot the raw data
-        is_finished = np.invert(self.task_information['remaining_to_do'])
-        meta_value = self.task_information.loc[is_finished, 'metadata']
-        runtime = self.task_information.loc[is_finished, 'runtime']
-        memory = self.task_information.loc[is_finished, 'memory']
+        is_finished = np.invert(self.task_information["remaining_to_do"])
+        meta_value = self.task_information.loc[is_finished, "metadata"]
+        runtime = self.task_information.loc[is_finished, "runtime"]
+        memory = self.task_information.loc[is_finished, "memory"]
 
-        ax[0].scatter(meta_value, runtime, s=2, c='k', label='Measured values')
-        ax[1].scatter(meta_value, memory, s=2, c='k', label='Measured values')
+        ax[0].scatter(meta_value, runtime, s=2, c="k", label="Measured values")
+        ax[1].scatter(meta_value, memory, s=2, c="k", label="Measured values")
 
         # Only add fits to the plot if we've done fits before
         if self._fit_time is not None and self._fit_memory is not None:
@@ -525,17 +663,30 @@ class SubprocessHandler:
 
             fit_range = np.linspace(np.min(meta_value), np.max(meta_value), num=100)
             log_fit_range = np.log(fit_range)
-            runtime_fit = np.exp(np.maximum(self._fit_time(log_fit_range), minimum_runtime))
-            memory_fit = np.exp(np.maximum(self._fit_memory(log_fit_range), minimum_memory))
+            runtime_fit = np.exp(
+                np.maximum(self._fit_time(log_fit_range), minimum_runtime)
+            )
+            memory_fit = np.exp(
+                np.maximum(self._fit_memory(log_fit_range), minimum_memory)
+            )
 
-            ax[0].plot(fit_range, runtime_fit, 'r-', label='Spline fit')
-            ax[1].plot(fit_range, memory_fit, 'r-', label='Spline fit')
+            ax[0].plot(fit_range, runtime_fit, "r-", label="Spline fit")
+            ax[1].plot(fit_range, memory_fit, "r-", label="Spline fit")
 
         # Beautification time!
-        ax[0].set(title=f"{self.config['run_name']} resource use at {timestamp(trailing_space=False)}",
-                  ylabel="Runtime (s)", yscale='log', xscale='log')
-        ax[1].set(xlabel=self.config['metadata_name'], ylabel="Memory use (GB)", yscale='log', xscale='log')
-        ax[0].legend(edgecolor='k')
+        ax[0].set(
+            title=f"{self.config['run_name']} resource use at {timestamp(trailing_space=False)}",
+            ylabel="Runtime (s)",
+            yscale="log",
+            xscale="log",
+        )
+        ax[1].set(
+            xlabel=self.config["metadata_name"],
+            ylabel="Memory use (GB)",
+            yscale="log",
+            xscale="log",
+        )
+        ax[0].legend(edgecolor="k")
 
         ax[0].minorticks_on()
         ax[1].minorticks_on()
@@ -543,7 +694,9 @@ class SubprocessHandler:
         fig.subplots_adjust(hspace=0.05)
 
         # Output
-        fig.savefig(self.config['logging_dir'] / "resource_use.png", bbox_inches="tight")
+        fig.savefig(
+            self.config["logging_dir"] / "resource_use.png", bbox_inches="tight"
+        )
 
         plt.close(fig)
 
@@ -578,7 +731,7 @@ class SubprocessHandler:
         # Memory settings!
         if self._config_to_change == "max_memory":
             try:
-                self.config['max_memory'] = float(self._current_input)
+                self.config["max_memory"] = float(self._current_input)
                 self._reset_input(f"Set max memory to {self.config['max_memory']} GB")
             except ValueError:
                 self._reset_input("Unable to set max memory with this input!")
@@ -586,16 +739,20 @@ class SubprocessHandler:
         # Limiting memory before death!
         elif self._config_to_change == "limit_memory":
             try:
-                self.config['max_memory_hard_limit'] = float(self._current_input)
-                self._reset_input(f"Set limiting memory to {self.config['max_memory_hard_limit']} GB")
+                self.config["max_memory_hard_limit"] = float(self._current_input)
+                self._reset_input(
+                    f"Set limiting memory to {self.config['max_memory_hard_limit']} GB"
+                )
             except ValueError:
                 self._reset_input("Unable to set limiting memory with this input!")
 
         # Max number of fitting knots!
         elif self._config_to_change == "fit_max_knots":
             try:
-                self.config['fit_max_knots'] = int(self._current_input)
-                self._reset_input(f"Set max fit knots to {self.config['fit_max_knots']}")
+                self.config["fit_max_knots"] = int(self._current_input)
+                self._reset_input(
+                    f"Set max fit knots to {self.config['fit_max_knots']}"
+                )
             except ValueError:
                 self._reset_input("Unable to set max fit knots with this input!")
 
@@ -603,11 +760,15 @@ class SubprocessHandler:
         elif self._config_to_change == "threads":
             try:
                 target_threads = int(self._current_input)
-                if target_threads > self.config['max_threads']:
+                if target_threads > self.config["max_threads"]:
                     raise ValueError
                 else:
-                    self.config['target_threads'] = self.current_max_threads = target_threads
-                    self._reset_input(f"Set number of threads to {self.config['target_threads']}")
+                    self.config["target_threads"] = (
+                        self.current_max_threads
+                    ) = target_threads
+                    self._reset_input(
+                        f"Set number of threads to {self.config['target_threads']}"
+                    )
             except ValueError:
                 self._reset_input("Unable to set number of threads with this input!")
 
@@ -632,7 +793,9 @@ class SubprocessHandler:
         else:
             # Show help text
             if keypress == "h":
-                self._keypress_info[1] = "h:help m:max n:lim t:threads p:plot c:clear k:knot f:fit"
+                self._keypress_info[
+                    1
+                ] = "h:help m:max n:lim t:threads p:plot c:clear k:knot f:fit"
 
             # Change maximum memory
             elif keypress == "m":
@@ -648,7 +811,9 @@ class SubprocessHandler:
 
             # Change number of threads
             elif keypress == "t":
-                self._keypress_info[1] = f"New number of threads (max {self.config['max_threads']}): "
+                self._keypress_info[
+                    1
+                ] = f"New number of threads (max {self.config['max_threads']}): "
                 self._current_input = ""
                 self._config_to_change = "threads"
 
@@ -712,7 +877,7 @@ class SubprocessHandler:
         # Add output to the terminal. We add as many lines as we can but prioritise having the last most important
         # ones be visible!
         try:
-            for line_number, text in enumerate(message[-self._last_window_size[0]:]):
+            for line_number, text in enumerate(message[-self._last_window_size[0] :]):
                 stdscr.addstr(line_number, 0, text)
 
         except CursesError as e:
@@ -724,30 +889,36 @@ class SubprocessHandler:
 
     def run(self):
         self._main_logfile("Running subprocess handler.", send_to_print=True)
-        curses.use_env(False)  # Allows window to be the wrong size without curses crashing
+        curses.use_env(
+            False
+        )  # Allows window to be the wrong size without curses crashing
 
         # Try to run, if we hit an error we try to kill child processes & be informative
         try:
             curses.wrapper(self._run_with_multiline_console)
 
         except Exception as e:
-
             self._main_logfile("-- FATAL ERROR ENCOUNTERED --", send_to_print=True)
             self._main_logfile(f"{e.__class__}: {str(e)}", send_to_print=True)
             self._main_logfile("Killing all child processes!", send_to_print=True)
 
             for i, a_process in enumerate(self.processes):
-                if a_process['process'] is not None:
+                if a_process["process"] is not None:
                     try:
-                        self._main_logfile(f"Killing process {i}, task {self.current_task_assignments[i]}",
-                                           send_to_print=True)
+                        self._main_logfile(
+                            f"Killing process {i}, task {self.current_task_assignments[i]}",
+                            send_to_print=True,
+                        )
                         self._kill_subprocess(i, "", emergency=True)
 
                     # We don't stop raising the main error if a process can't be killed successfully!
                     except Exception:
                         pass
 
-            self._main_logfile("Child processes killed, terminating program. Bye =(", send_to_print=True)
+            self._main_logfile(
+                "Child processes killed, terminating program. Bye =(",
+                send_to_print=True,
+            )
 
             raise e
 
@@ -763,7 +934,6 @@ class SubprocessHandler:
         # Main iteration of the handler
         self.step = 0
         while self.tasks_completed < self.tasks_total:
-
             # Check on the existing processes
             self._check_memory_usage()
             completed_subprocesses, running_subprocesses = self._poll_subprocesses()
@@ -773,13 +943,16 @@ class SubprocessHandler:
                 self._fit_resource_usage()
                 self._create_subprocesses()
 
-            elif running_subprocesses == 0 or running_subprocesses < self.current_max_threads:
+            elif (
+                running_subprocesses == 0
+                or running_subprocesses < self.current_max_threads
+            ):
                 self._create_subprocesses()
 
             # Update the user
             self.step += 1
             self.render_console(stdscr)
 
-            time.sleep(self.config['main_thread_sleep_time'])
+            time.sleep(self.config["main_thread_sleep_time"])
 
         self.plot_resource_usage()

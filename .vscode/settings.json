@@ -1,8 +1,9 @@
 {
-    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.typeCheckingMode": "off",
     "python.analysis.autoImportCompletions": true,
-    "workbench.colorCustomizations": {
-        "statusBar.background": "#2d5b6b",
-        "statusBar.foreground": "#ffffff"
-    }
+    "python.testing.pytestArgs": [
+        "src"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }
