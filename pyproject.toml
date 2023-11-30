@@ -3,7 +3,7 @@ name = "smartmultiprocessing"  # Required
 version = "0.0.1"  # Required
 description = "Memory-managed parallel computing for medium-sized computational tasks."  # Optional
 readme = "README.md" # Optional
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = {file = "LICENSE"}
 keywords = ["multiprocessing", "parallel", "threading", "development"]  # Optional
 authors = [
@@ -18,7 +18,6 @@ classifiers = [  # Optional
 #   "Topic :: Software Development :: Build Tools",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",

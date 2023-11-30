@@ -5,7 +5,7 @@ import multiprocessing
 from smartmultiprocessing import SmartProcess
 from smartmultiprocessing.errors import NoResultError, ProcessFailedError, ProcessStillRunningError
 from smartmultiprocessing.process import pipe_return_function
-from .functions import sleeper, crasher, returner, allocator, cpu_user, childer
+from tests.functions import sleeper, crasher, returner, allocator, cpu_user, childer
 import pytest
 
 
