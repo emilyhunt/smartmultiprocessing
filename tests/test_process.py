@@ -3,7 +3,11 @@ import time
 import psutil
 import multiprocessing
 from smartmultiprocessing import SmartProcess
-from smartmultiprocessing.errors import NoResultError, ProcessFailedError, ProcessStillRunningError
+from smartmultiprocessing.errors import (
+    NoResultError,
+    ProcessFailedError,
+    ProcessStillRunningError,
+)
 from smartmultiprocessing.process import pipe_return_function
 from tests.functions import sleeper, crasher, returner, allocator, cpu_user, childer
 import pytest

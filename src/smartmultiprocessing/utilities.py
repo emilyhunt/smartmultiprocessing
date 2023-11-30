@@ -21,9 +21,7 @@ def timestamp(date: bool = True, trailing_space: bool = True):
 
 
 class Logfile:
-
-    def __init__(self, logfile: Path, pipe: Optional[Connection]=None):
-
+    def __init__(self, logfile: Path, pipe: Optional[Connection] = None):
         logfile.parent.mkdir(parents=True, exist_ok=True)
 
         self.logfile = logfile
@@ -32,14 +30,18 @@ class Logfile:
         self.logfile_on = True
         self.always_print = False
 
-    def __call__(self, message: str, send_to_pipe: bool = True,
-                 send_to_logfile: bool = True, send_to_print: bool = False):
-
+    def __call__(
+        self,
+        message: str,
+        send_to_pipe: bool = True,
+        send_to_logfile: bool = True,
+        send_to_print: bool = False,
+    ):
         if send_to_pipe and self.pipe is not None and self.pipe_on:
             self.pipe.send(timestamp(date=False) + message)
 
         if send_to_logfile and self.logfile_on:
-            with open(self.logfile, 'a') as file:
+            with open(self.logfile, "a") as file:
                 file.write(timestamp() + message + "\n")
 
         if send_to_print or self.always_print:
