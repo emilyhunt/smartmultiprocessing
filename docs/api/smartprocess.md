@@ -1,0 +1,3 @@
+# SmartProcess
+
+::: smartmultiprocessing.SmartProcess

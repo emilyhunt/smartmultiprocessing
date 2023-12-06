@@ -50,6 +50,61 @@ class SmartProcess:
         daemon: Optional[bool] = None,
         fetch_result: bool = False,
     ) -> None:
+        """Extension to `multiprocessing.Process` with multiple memory-management
+        options, the ability to return results from processes, and more.
+
+        The API of `SmartProcess` matches that of `multiprocessing.Process`, except with
+        some notable additions like:
+
+        SmartProcess.resource_usage() - get the process' current CPU and memory usage
+        SmartProcess.is_finished() - boolean for if process is done
+        SmartProcess.get_result() - get the result from `target`, if process finished
+        SmartProcess.get_children() - get all child processes of this process.
+
+        Parameters
+        ----------
+        group : None
+            Argument that must always be None. It exists for compatibility with the
+            threading.Thread API.
+        target : Callable
+            Target function to run on.
+        name : str, optional
+            Name of process to pass to multiprocessing.Process.
+        args : Iterable[Any], optional
+            Arguments to pass to `target`.
+        kwargs : Mappable[str, Any], optional
+            Keyword arguments to pass to `target`.
+        daemon : None or bool, optional
+            Whether or not to run as a daemon (background process). Passed to
+            multiprocessing.Process. TODO: not sure if this can actually be supported...
+        fetch_result: bool, default = False
+            Whether or not to try and fetch a result in-memory for `target`. `target`
+            must return a value for this to be used.
+
+        Notes
+        -----
+        CPU and memory usage tracking is done using `psutil`. Support on systems that
+        aren't Linux, Mac, or Windows may be limited.
+
+        Examples
+        --------
+        Start a process that prints to the console in the background:
+
+        >>> p = smartmultiprocessing.SmartProcess(target=lambda: print("Hello World"))
+
+        >>> p.start()
+        Hello World
+
+        We can check if the process is finished:
+
+        >>> p.is_finished()
+        True
+
+        or get its exitcode:
+
+        >>> p.get_exitcode()
+        True
+        """
         if group is not None:
             raise NotImplementedError(
                 "group must always be None. This argument is reserved due to future "
@@ -121,6 +176,17 @@ class SmartProcess:
             cpu_percent += if_exists_cpu_percent(child_process, None)
         return cpu_percent
 
+    def resource_usage(
+        self,
+        interval: Optional[Union[int, float]] = None,
+        children: Union[Iterable, bool] = False,
+    ) -> Mapping[str, Union[int, float]]:
+        children = self._children_in_arg(children)
+        return {
+            "cpu_usage": self.cpu_usage(interval=interval, children=children),
+            "memory_usage": self.memory_usage(children=children),
+        }
+
     def get_result(
         self,
         join: bool = False,
@@ -134,22 +200,21 @@ class SmartProcess:
             )
         if join:
             self.process.join(timeout)
-        if self.get_exitcode() is None:
+        if not self.is_finished():
             raise ProcessStillRunningError(
                 "Process has not yet finished! Unable to get result."
             )
-        if self.get_exitcode() != 0:
-            raise ProcessFailedError("Process failed! Unable to get result.")
         if not self.result_pipe.poll(pipe_timeout):
             raise NoResultError(
                 "Process did not return a result after completion, or result was "
-                "already accessed."
+                "already accessed, or pipe_timeout was too short."
             )
         try:
             return self.result_pipe.recv()
         except EOFError:
-            raise NoResultError("Pipe contains no result, or other end of pipe was "
-                                "already closed.")
+            raise NoResultError(
+                "Pipe contains no result, or other end of pipe was already closed."
+            )
 
     def get_exitcode(self):
         return self.process.exitcode
@@ -166,6 +231,15 @@ class SmartProcess:
 
     def is_alive(self) -> bool:
         return self.process.is_alive()
+
+    def is_finished(self) -> bool:
+        if self.is_alive():
+            return False
+        if exitcode := self.get_exitcode() != 0:
+            raise ProcessFailedError(
+                f"Process failed during execution with exitcode {exitcode}"
+            )
+        return True
 
     def terminate(self, children=True):
         children = self._children_in_arg(children)
