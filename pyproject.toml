@@ -31,7 +31,7 @@ dependencies = [
 
 
 [project.optional-dependencies]
-dev = ["check-manifest", "pytest", "mkdocs-material", "mkdocstrings[python]"]
+dev = ["check-manifest", "pytest", "mkdocs-material", "mkdocstrings[python]>=0.18"]
 test = ["pytest"]
 
 [project.urls]  # Optional
