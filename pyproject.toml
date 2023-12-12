@@ -32,6 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["check-manifest", "pytest", "mkdocs-material", "mkdocstrings[python]>=0.18"]
+docs = ["mkdocs-material", "mkdocstrings[python]>=0.18"]  # For building docs on GitHub
 test = ["pytest"]
 
 [project.urls]  # Optional
