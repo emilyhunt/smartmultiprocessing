@@ -40,6 +40,25 @@ def if_exists_memory_rss(process: psutil.Process):
 
 
 class SmartProcess:
+    """Extension to `multiprocessing.Process` with multiple memory-management
+    options, the ability to return results from processes, and more.
+
+    This is a relatively low-level part of SmartMultiprocessing. Average users are
+    probably more interested in more abstract parts of this library, like 
+    `SmartPool` and `SmartQueue`, which can initialise as many `SmartProcess`es as you'd
+    like and include GUI options.
+
+    The API of `SmartProcess` matches that of `multiprocessing.Process`, except with
+    some notable additions like:
+
+    `SmartProcess.resource_usage()` - get the process' current CPU and memory usage.
+    
+    `SmartProcess.is_finished()` - boolean for if process is done.
+
+    `SmartProcess.get_result()` - get the result from `target`, if process finished.
+
+    `SmartProcess.get_children()` - get all child processes of this process.
+    """
     def __init__(
         self,
         group: None = None,
@@ -50,16 +69,7 @@ class SmartProcess:
         daemon: Optional[bool] = None,
         fetch_result: bool = False,
     ) -> None:
-        """Extension to `multiprocessing.Process` with multiple memory-management
-        options, the ability to return results from processes, and more.
-
-        The API of `SmartProcess` matches that of `multiprocessing.Process`, except with
-        some notable additions like:
-
-        SmartProcess.resource_usage() - get the process' current CPU and memory usage
-        SmartProcess.is_finished() - boolean for if process is done
-        SmartProcess.get_result() - get the result from `target`, if process finished
-        SmartProcess.get_children() - get all child processes of this process.
+        """Create a new SmartProcess object.
 
         Parameters
         ----------
@@ -91,7 +101,6 @@ class SmartProcess:
         Start a process that prints to the console in the background:
 
         >>> p = smartmultiprocessing.SmartProcess(target=lambda: print("Hello World"))
-
         >>> p.start()
         Hello World
 
@@ -103,7 +112,7 @@ class SmartProcess:
         or get its exitcode:
 
         >>> p.get_exitcode()
-        True
+        0
         """
         if group is not None:
             raise NotImplementedError(
@@ -138,9 +147,12 @@ class SmartProcess:
         return children
 
     def get_children(self, recursive: bool = True):
+        """Gets the children of the process. TODO: document params
+        """
         return self.psutil_process.children(recursive=recursive)
 
     def memory_usage(self, children: Union[Iterable, bool] = False) -> int:
+        """Returns current memory usage of the process.. TODO: document params"""
         # Proportional set size of parent thread. Best guess at the memory usage of this
         # thread, as shared with others.
         memory_usage = if_exists_memory_pss(self.psutil_process)
@@ -158,6 +170,7 @@ class SmartProcess:
         interval: Optional[Union[int, float]] = None,
         children: Union[Iterable, bool] = False,
     ) -> int:
+        """Returns current CPU usage of the process.. TODO: document params"""
         if not children:
             return if_exists_cpu_percent(self.psutil_process, interval)
         children = self._children_in_arg(children)
@@ -182,6 +195,7 @@ class SmartProcess:
         children: Union[Iterable, bool] = False,
     ) -> Mapping[str, Union[int, float]]:
         children = self._children_in_arg(children)
+        """Returns a dict of CPU and memory usage of the process.. TODO: document"""
         return {
             "cpu_usage": self.cpu_usage(interval=interval, children=children),
             "memory_usage": self.memory_usage(children=children),
@@ -193,6 +207,7 @@ class SmartProcess:
         timeout: Optional[float] = None,
         pipe_timeout: Optional[float] = 1.0,
     ):
+        """Attempts to fetch a result for the process. TODO: document params"""
         if not self.fetch_result:
             raise ValueError(
                 "get_result not set during initialisation! No result is expected from"
@@ -217,22 +232,33 @@ class SmartProcess:
             )
 
     def get_exitcode(self):
+        """Returns the exitcode of the process, which is only set if it has finished."""
         return self.process.exitcode
 
     def run(self):
+        """Runs the target of the process. 
+        
+        Not recommended: use `SmartProcess.start()` instead.
+        """
         self.process.run()
 
     def start(self):
+        """Starts the process."""
         self.process.start()
         self.psutil_process = psutil.Process(self.process.pid)
 
     def join(self, timeout: Optional[float] = None):
+        """Joins the thread of the process (assuming it has been started already) and
+        blocks until completion.
+        """
         self.process.join(timeout)
 
     def is_alive(self) -> bool:
+        """Boolean of whether or not the process is currently running."""
         return self.process.is_alive()
 
     def is_finished(self) -> bool:
+        """Boolean of whether or not the process has finished."""
         if self.is_alive():
             return False
         if exitcode := self.get_exitcode() != 0:
@@ -242,6 +268,7 @@ class SmartProcess:
         return True
 
     def terminate(self, children=True):
+        """Sends a SIGTERM and terminates the process. TODO: document params"""
         children = self._children_in_arg(children)
         self.process.terminate()
         for a_child in children:
@@ -251,6 +278,7 @@ class SmartProcess:
                 pass
 
     def kill(self, children=True):
+        """Sends a SIGKILL and kills the process. TODO: document params"""
         children = self._children_in_arg(children)
         self.process.kill()
         for a_child in children:
@@ -260,4 +288,5 @@ class SmartProcess:
                 pass
 
     def close(self):
+        """Closes all resources occupied by the process."""
         self.process.close()

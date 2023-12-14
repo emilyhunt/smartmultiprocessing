@@ -60,14 +60,10 @@ plugins:
     - mkdocstrings:
         handlers:
             python:
-                selection:
-                    inherited_members: true  # Allow looking up inherited methods
-                rendering:
-                    show_root_heading: true  # actually display anything at all...
-                    show_root_full_path: true  # display "diffrax.asdf" not just "asdf"
-                    show_if_no_docstring: true
-                    show_signature_annotations: true
-                    show_source: false  # don't include source code
-                    members_order: source  # order methods according to their order of definition in the source code, not alphabetical order
-                    heading_level: 4
+                options:
+                    docstring_style: numpy  # Render docs as numpy style
+                    show_source: false
+                    show_object_members_full_path: true
+                    members_order: source
+                    # inherited_members: true  # Allow looking up inherited methods
     # - privacy  # Not installed error???
