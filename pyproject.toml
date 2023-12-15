@@ -36,11 +36,9 @@ docs = ["mkdocs-material", "mkdocstrings[python]>=0.18"]  # For building docs on
 test = ["pytest"]
 
 [project.urls]  # Optional
-"Homepage" = "https://github.com/pypa/sampleproject"
-"Bug Reports" = "https://github.com/pypa/sampleproject/issues"
-"Funding" = "https://donate.pypi.org"
-"Say Thanks!" = "http://saythanks.io/to/example"
-"Source" = "https://github.com/pypa/sampleproject/"
+"Homepage" = "https://smartmultiprocessing.org"
+"Bug Reports" = "https://github.com/emilyhunt/smartmultiprocessing/issues"
+"Source" = "https://github.com/emilyhunt/smartmultiprocessing"
 
 # [tool.setuptools]
 # package-data = {"sample" = ["*.dat"]}
