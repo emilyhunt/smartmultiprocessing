@@ -121,7 +121,7 @@ class SubprocessHandler:
             write_header = False
         else:
             existing_task_information = None
-            completed_tasks = np.zeros(0, dtype=np.int)
+            completed_tasks = np.zeros(0, dtype=int)
             write_header = True
 
         # Generate a blank df with every task to run on, ignoring tasks that are already done
